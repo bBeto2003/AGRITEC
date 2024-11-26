@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+    <style>
+        #mi_mapa {
+            width: 100%;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="navbar-brand"><a href="index.html"  class="nav-link">AGRITEC</div></a>
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a href="mapa.html" class="nav-link">Mapa</a>
+            </li>
+            <li class="nav-item">
+                <a href="tabla.html" class="nav-link">Tabla</a>
+            </li>
+            <li class="nav-item">
+                <a href="graficas.html" class="nav-link">Gráficas</a>
+            </li>
+        </ul>
+    </nav>
+    
+    <main>
+        <h1>Ubicación del Sistema</h1>
+        <div id="mi_mapa"></div>
+    </main>
+
+    <script>
+        // Configuración inicial del mapa con coordenadas predeterminadas
+        let map = L.map('mi_mapa').setView([19.24914, -103.69736], 15);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Función para obtener los datos de TX_BETO y otros sensores
+        async function obtenerDatos() {
+    try {
+        // Función para obtener un dato específico
+        async function obtenerDatoTxBeto(dato) {
+            try {
+                const response = await fetch(`/api/sensores/ultimos/${dato}`);
+                const data = await response.json();
+                return data[dato];
+            } catch (error) {
+                console.error(`Error al obtener ${dato}:`, error);
+                return 'N/A';
+            }
+        }
+
+        // Obtener datos específicos
+        const humedad = await obtenerDatoTxBeto('Humedad');
+        const luz = await obtenerDatoTxBeto('LDR');
+
+        // Coordenadas predeterminadas
+        const lat = 19.24914;
+        const lon = -103.69736;
+
+        // Crear contenido del popup
+        const popupContent = `
+            <strong>Últimos datos:</strong><br>
+            Humedad: ${humedad}%<br>
+            Luz (LDR): ${luz}<br>
+            Hora: ${await obtenerDatoTxBeto('Hora')}<br>
+            Fecha: ${await obtenerDatoTxBeto('Fecha')}<br>
+            Última actualización: ${new Date().toLocaleString()}
+        `;
+
+        // Actualizar el mapa con el marcador
+        map.setView([lat, lon], 15);
+        L.marker([lat, lon]).addTo(map).bindPopup(popupContent).openPopup();
+
+    } catch (error) {
+        console.error('Error al obtener datos del backend:', error);
+    }
+}
+
+        // Llamada inicial a los datos
+        obtenerDatos();
+        
+        // Actualizar datos cada minuto
+        setInterval(obtenerDatos, 60000);
+    </script>
+    
+</body>
+</html>

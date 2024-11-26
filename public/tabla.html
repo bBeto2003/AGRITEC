@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Datos del Usuario</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.2.6/mqtt.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+            window.location.href = 'login.html';
+        }
+
+        var client = mqtt.connect("ws://test.mosquitto.org:8080/mqtt");
+        let datosSensores = JSON.parse(localStorage.getItem('datosSensores')) || {};
+
+        function EventoConectar() {
+            console.log("Conectado a MQTT");
+            const temas = [
+                "/Vista/Hora",
+                "/Vista/Fecha",
+                "/LDR",
+                "/Foco",
+                "/Humedad",
+                "/Bomba_agua", 
+                "/Cisterna",
+                "/Relay/Foco_hora_A",
+                "/Relay/Foco_hora_D",
+                "/Relay/Bomba_hora_A",
+                "/Relay/Bomba_hora_D",
+                "/TX_BETO"
+            ];
+            temas.forEach(tema => client.subscribe(tema));
+            console.log("Suscrito a los temas");
+        }
+
+        client.on("connect", EventoConectar);
+
+        client.on("message", function (topic, message) {
+            console.log("Mensaje recibido en el tema " + topic + ": " + message.toString());
+
+            if (topic === "/TX_BETO") {
+                // Solo enviar TX_BETO a la base de datos, sin almacenar en localStorage
+                enviarDatosSensor(topic, message.toString(), new Date().toISOString());
+                return;
+            }
+
+            let valor = message.toString().trim();
+            if (!valor) {
+                console.log("Mensaje vacío en el tema " + topic + ", no se almacenará.");
+                return;
+            }
+
+            let fechaHora = new Date().toISOString();
+
+            datosSensores[topic] = {
+                valor: valor,
+                timestamp: fechaHora
+            };
+
+            localStorage.setItem('datosSensores', JSON.stringify(datosSensores));
+            mostrarTabla();
+            enviarDatosSensor(topic, valor, fechaHora);
+        });
+
+        function enviarDatosSensor(type, value, timestamp) {
+            fetch('http://localhost:3000/api/sensores', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: type,
+                    value: value,
+                    timestamp: timestamp
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (type === "/TX_BETO") {
+                    console.log('Guardando datos de TX_BETO:', value);
+                } else {
+                    console.log('Datos guardados:', { type, value, timestamp });
+                }
+                console.log('Respuesta del servidor:', data);
+            })
+            .catch(error => {
+                console.error('Error al enviar datos:', error);
+            });
+        }
+
+        function mostrarTabla() {
+            var tablaHTML = `
+                <table class='table table-striped' style="width: 100%; table-layout: fixed;">
+                    <thead>
+                        <tr>
+                            <th>Sensor</th>
+                            <th>Valor</th>
+                            <th>Fecha y Hora</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            var temas = Object.keys(datosSensores);
+            for (var i = 0; i < temas.length; i++) {
+                var tema = temas[i];
+                // Exclude TX_BETO from the table
+                if (tema === "/TX_BETO") continue;
+
+                var dato = datosSensores[tema];
+
+                if (dato.valor && dato.valor.trim() !== "") {
+                    const fecha = new Date(dato.timestamp);
+                    if (!isNaN(fecha)) {
+                        const fechaFormateada = fecha.toLocaleString('es-ES', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+
+                        tablaHTML += `
+                            <tr>
+                                <td>${tema}</td>
+                                <td>${dato.valor}</td>
+                                <td>${fechaFormateada}</td>
+                            </tr>
+                        `;
+                    } else {
+                        console.log(`Fecha inválida para el tema ${tema}`);
+                    }
+                }
+            }
+            tablaHTML += "</tbody></table>";
+            document.getElementById("mensajes").innerHTML = tablaHTML;
+        }
+
+        window.onload = mostrarTabla;
+    </script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg" style="background-color: #126405;">
+        <div class="navbar-brand"><a href="index.html"  class="nav-link">AGRITEC</div></a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a href="mapa.html" class="nav-link text-white font-weight-bold">Mapa</a>
+                </li>
+                <li class="nav-item">
+                    <a href="tabla.html" class="nav-link text-white font-weight-bold">Tabla</a>
+                </li>
+                <li class="nav-item">
+                    <a href="graficas.html" class="nav-link text-white font-weight-bold">Gráficas</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <h2>Datos de Sensores</h2>
+        <div id="mensajes"></div>
+    </div>
+    
+</body>
+</html>

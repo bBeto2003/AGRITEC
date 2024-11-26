@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gráficas de Sensores</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.2.6/mqtt.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Barra de navegación -->
+    <nav class="navbar navbar-expand-lg" style="background-color: #126405;">
+        <div class="navbar-brand"><a href="index.html"  class="nav-link">AGRITEC</div></a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a href="mapa.html" class="nav-link text-white font-weight-bold">Mapa</a>
+                </li>
+                <li class="nav-item">
+                    <a href="tabla.html" class="nav-link text-white font-weight-bold">Tabla</a>
+                </li>
+                <li class="nav-item">
+                    <a href="graficas.html" class="nav-link text-white font-weight-bold active" style="background-color: #28a745; border-radius: 5px;">Gráficas</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Contenido principal -->
+    <div class="container-fluid mt-4">
+        <h2 class="text-center mb-4">Monitoreo en Tiempo Real</h2>
+        <div class="row justify-content-center">
+            <!-- Tarjeta de Nivel de Humedad -->
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-center">Nivel de Humedad</h5>
+                        <canvas id="graficaHumedad" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta de Intensidad de Luz -->
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-center">Intensidad de Luz</h5>
+                        <canvas id="graficaLuz" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        const MAX_DATOS = 10;
+
+        // Configuración de las gráficas
+        const ctxHumedad = document.getElementById('graficaHumedad').getContext('2d');
+        const ctxLuz = document.getElementById('graficaLuz').getContext('2d');
+
+        const graficaHumedad = new Chart(ctxHumedad, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Humedad (%)', data: [], borderColor: 'blue', borderWidth: 2 }] },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } },
+        });
+
+        const graficaLuz = new Chart(ctxLuz, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Luz (lux)', data: [], borderColor: 'orange', borderWidth: 2 }] },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } },
+        });
+
+        // Función para obtener y actualizar los datos en tiempo real
+        async function fetchData(tipo, grafica) {
+            try {
+                const response = await fetch(`/api/sensores/ultimos10/${tipo}`);
+                if (!response.ok) {
+                    throw new Error(`Error en la respuesta: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // Extraer etiquetas y valores
+                const labels = data.map(d => new Date(d.timestamp).toLocaleTimeString());
+                const values = data.map(d => d[tipo]);
+
+                // Actualizar la gráfica
+                grafica.data.labels = labels;
+                grafica.data.datasets[0].data = values;
+                grafica.update();
+            } catch (error) {
+                console.error(`Error al obtener datos de ${tipo}:`, error);
+            }
+        }
+
+        // Actualizar las gráficas periódicamente
+        setInterval(() => {
+            fetchData('humedad', graficaHumedad);
+            fetchData('LDR', graficaLuz);
+        }, 5000); // Cada 5 segundos
+    </script>
+</body>
+</html>
